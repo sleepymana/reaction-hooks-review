@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UGC Reaction Hooks — Keyframe Review v2</title>
+<style>
+  :root {
+    --bg: #0e0f12;
+    --panel: #16181d;
+    --line: #25282f;
+    --text: #e8e8ea;
+    --muted: #8b8e97;
+    --green: #2bb06a;
+    --red: #d94a3d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; flex: 1; min-width: 200px; }
+  .progress { color: var(--muted); font-variant-numeric: tabular-nums; }
+  button.primary {
+    background: var(--text); color: var(--bg); border: 0;
+    padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:hover { opacity: 0.9; }
+  .brand-section {
+    padding: 24px 20px 8px; font-size: 13px;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px; padding: 0 20px 20px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .card.approved { border-color: var(--green); }
+  .card.rejected { border-color: var(--red); }
+  .card .imgwrap {
+    aspect-ratio: 9/16; background: #000;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .body { padding: 10px 12px 12px; }
+  .card .label {
+    font-weight: 600; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .card .badge {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 8px; border-radius: 999px;
+    color: var(--muted); border: 1px solid var(--line);
+  }
+  .card.approved .badge { color: #fff; background: var(--green); border-color: var(--green); }
+  .card.rejected .badge { color: #fff; background: var(--red); border-color: var(--red); }
+  .btn-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .btn-row button {
+    flex: 1; padding: 7px 0; border-radius: 6px;
+    border: 1px solid var(--line); background: transparent;
+    color: var(--text); font-weight: 600; cursor: pointer;
+  }
+  .btn-row .approve.active { background: var(--green); border-color: var(--green); }
+  .btn-row .reject.active  { background: var(--red);   border-color: var(--red); }
+  .btn-row button:hover:not(.active) { background: #1c1f25; }
+  textarea.note {
+    width: 100%; background: #0b0c10; border: 1px solid var(--line);
+    color: var(--text); border-radius: 6px; padding: 7px 9px;
+    font: 12px/1.4 inherit; resize: vertical; min-height: 36px;
+  }
+  textarea.note::placeholder { color: var(--muted); }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg);
+    padding: 10px 18px; border-radius: 999px; font-weight: 600;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UGC Reaction Hooks — Keyframe Review v2</h1>
+  <span class="progress" id="progress">0 / 22 reviewed</span>
+  <button class="primary" id="copyBtn">Copy results</button>
+</header>
+
+<div id="root"></div>
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+const KEEP = {
+  snyder:    [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  golfballs: [1, 2, 3, 5, 6, 7, 8, 10, 15],
+};
+const BRANDS = [
+  { key: "snyder", label: "Snyder — High-Quality Balls" },
+  { key: "golfballs", label: "Golfballs — Personalization" },
+];
+
+const root = document.getElementById("root");
+const state = {};
+
+for (const b of BRANDS) {
+  const section = document.createElement("div");
+  section.className = "brand-section";
+  section.textContent = b.label + " · " + KEEP[b.key].length + " keyframes";
+  root.appendChild(section);
+
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  root.appendChild(grid);
+
+  for (const i of KEEP[b.key]) {
+    const n = String(i).padStart(2, "0");
+    const id = `${b.key}_${n}`;
+    state[id] = { decision: null, note: "" };
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = `card_${id}`;
+    card.innerHTML = `
+      <div class="imgwrap"><img src="images/${id}.jpg" alt="${id}" loading="lazy"></div>
+      <div class="body">
+        <div class="label">
+          <span>${b.key.toUpperCase()} · #${n}</span>
+          <span class="badge" id="badge_${id}">Pending</span>
+        </div>
+        <div class="btn-row">
+          <button class="approve" data-id="${id}" data-decision="approve">Approve</button>
+          <button class="reject"  data-id="${id}" data-decision="reject">Reject</button>
+        </div>
+        <textarea class="note" placeholder="Optional note" data-id="${id}"></textarea>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+const TOTAL = Object.keys(state).length;
+
+function updateUI(id) {
+  const card = document.getElementById(`card_${id}`);
+  const badge = document.getElementById(`badge_${id}`);
+  const { decision } = state[id];
+  card.classList.remove("approved", "rejected");
+  if (decision === "approve") { card.classList.add("approved"); badge.textContent = "Approved"; }
+  else if (decision === "reject") { card.classList.add("rejected"); badge.textContent = "Rejected"; }
+  else { badge.textContent = "Pending"; }
+  card.querySelectorAll(".btn-row button").forEach(b => {
+    b.classList.toggle("active", b.dataset.decision === decision);
+  });
+  refreshProgress();
+}
+
+function refreshProgress() {
+  let approved = 0, rejected = 0, reviewed = 0;
+  for (const id in state) {
+    const d = state[id].decision;
+    if (d) reviewed++;
+    if (d === "approve") approved++;
+    if (d === "reject") rejected++;
+  }
+  document.getElementById("progress").textContent =
+    `${reviewed} / ${TOTAL} reviewed · ${approved} approved · ${rejected} rejected`;
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-row button");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const d = btn.dataset.decision;
+  state[id].decision = state[id].decision === d ? null : d;
+  updateUI(id);
+});
+document.addEventListener("input", (e) => {
+  if (e.target.matches("textarea.note")) state[e.target.dataset.id].note = e.target.value.trim();
+});
+
+document.getElementById("copyBtn").addEventListener("click", async () => {
+  const lines = ["# UGC Reaction Hooks — Keyframe Review v2", ""];
+  for (const b of BRANDS) {
+    lines.push(`## ${b.label}`); lines.push("");
+    for (const i of KEEP[b.key]) {
+      const n = String(i).padStart(2, "0");
+      const id = `${b.key}_${n}`;
+      const s = state[id];
+      const d = s.decision === "approve" ? "✅ APPROVE"
+              : s.decision === "reject"  ? "❌ REJECT"
+              : "—  pending";
+      const note = s.note ? `  — ${s.note}` : "";
+      lines.push(`- **${b.key.toUpperCase()} #${n}** — ${d}${note}`);
+    }
+    lines.push("");
+  }
+  const txt = lines.join("\n");
+  try {
+    await navigator.clipboard.writeText(txt);
+    const t = document.getElementById("toast");
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1500);
+  } catch (err) {
+    const ta = document.createElement("textarea");
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+    alert("Copied (fallback).");
+  }
+});
+</script>
+
+</body>
+</html>
