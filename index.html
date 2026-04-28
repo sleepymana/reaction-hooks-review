@@ -63,17 +63,15 @@
   }
   .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-  /* Hook-text overlay — vertically centered. Face usually sits in the
-     top third of UGC selfies, so vertical center lands on the chest /
-     torso area — face above, equipment below, neither covered. */
+  /* Hook-text overlay — positioned per-card just above each subject's head,
+     using head_top_y_pct values detected by Gemini vision per image. */
   .text-overlay {
     position: absolute;
     left: 8%;
     right: 8%;
-    top: 38%;
-    transform: translateY(-50%);
     text-align: center;
     pointer-events: none;
+    /* `bottom` is set inline per card; bubble grows upward from there. */
   }
   .text-overlay span {
     display: inline;
@@ -141,6 +139,24 @@ const KEEP = {
   snyder:    [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21],
   golfballs: [1, 2, 3, 5, 6, 10, 15],
 };
+// Head-top y-coordinate per card (% from top of image), via Gemini vision.
+const HEAD_POS = {
+  "golfballs_01": 14.8, "golfballs_02": 9.0, "golfballs_03": 7.5,
+  "golfballs_05": 14.88, "golfballs_06": 9.4, "golfballs_10": 8.7,
+  "golfballs_15": 15.6, "snyder_01": 14.18, "snyder_05": 28.79,
+  "snyder_06": 13.5, "snyder_07": 13.06, "snyder_08": 16.9,
+  "snyder_09": 18.5, "snyder_10": 16.63, "snyder_11": 16.59,
+  "snyder_12": 17.4, "snyder_13": 12.3, "snyder_14": 7.51,
+  "snyder_15": 19.33, "snyder_16": 13.62, "snyder_17": 11.23,
+  "snyder_19": 9.38, "snyder_20": 18.0, "snyder_21": 15.39
+};
+// Compute bubble bottom (CSS `bottom` % from image bottom) so the bubble's
+// bottom edge sits ~2% above the top of the head. Clamp head_top to a
+// minimum of 11% so the bubble has room and doesn't clip off the top.
+function bubbleBottomPct(id) {
+  const head = Math.max(HEAD_POS[id] ?? 15, 11);
+  return (102 - head).toFixed(1);
+}
 const BRANDS = [
   { key: "snyder", label: "Snyder — High-Quality Balls" },
   { key: "golfballs", label: "Golfballs — Personalization" },
@@ -171,7 +187,7 @@ for (const b of BRANDS) {
     card.innerHTML = `
       <div class="imgwrap">
         <img src="images/${id}.jpg" alt="${id}" loading="lazy">
-        <div class="text-overlay"><span>${CAPTION}</span></div>
+        <div class="text-overlay" style="bottom: ${bubbleBottomPct(id)}%"><span>${CAPTION}</span></div>
       </div>
       <div class="body">
         <div class="label">
